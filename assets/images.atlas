@@ -1,0 +1,19 @@
+images {
+  image: "/assets/roomba.png"
+}
+images {
+  image: "/assets/arena.jpg"
+}
+images {
+  image: "/assets/wipe.png"
+}
+images {
+  image: "/assets/sprint.jpg"
+}
+images {
+  image: "/assets/shield.jpg"
+}
+images {
+  image: "/assets/glow.png"
+}
+extrude_borders: 2

@@ -1,0 +1,120 @@
+local colors = require "main.colors"
+
+local MAX_BALLS      = 100
+local SPAWN_INTERVAL = 1.0
+local START_BALLS    = 6
+local BALL_SPEED_MIN = 120
+local BALL_SPEED_MAX = 220
+
+local SPAWN_POINTS = {
+	vmath.vector3(-185.42839050293, 267.1145324707, 0),
+	vmath.vector3(5.9927725791931, 267.1145324707, 0),
+	vmath.vector3(174.06001281738, 267.1145324707, 0),
+	vmath.vector3(-164.01963806152, 100.04666137695, 0),
+	vmath.vector3(-0.64525485038757, 100.04666137695, 0),
+	vmath.vector3(166.89764404297, 100.12384796143, 0),
+	vmath.vector3(-260.54818725586, -59.494926452637, 0),
+	vmath.vector3(262.55120849609, -59.494926452637, 0),
+	vmath.vector3(-246.99151611328, -246.04626464844, 0),
+	vmath.vector3(-3.0066795349121, -241.50624084473, 0),
+	vmath.vector3(246.54695129395, -241.5, 0),
+}
+
+local BALL_COLLECTED = hash("ball_collected")
+local START_GAME     = hash("start_game")
+local STOP_GAME      = hash("stop_game")
+local GAME_START     = hash("game_start")
+local GAME_STOP      = hash("game_stop")
+
+local function spawn_ball(self)
+	local sp = SPAWN_POINTS
+	local p = sp[math.random(#sp)]
+	local color = (math.random() < 0.5) and colors.LIGHT or colors.VOID
+	local id = factory.create("#orbfactory", p, nil, {
+		color = color,
+		speed = math.random(BALL_SPEED_MIN, BALL_SPEED_MAX),
+	})
+	self.balls[id] = true
+	self.ball_count = self.ball_count + 1
+	-- Match the current run state right away (a ball spawned mid-round runs).
+	if self.running then msg.post(id, GAME_START) end
+end
+
+local function set_running(self, running)
+	self.running = running
+	msg.post("/player#player", running and GAME_START or GAME_STOP)
+	for id in pairs(self.balls) do
+		msg.post(id, running and GAME_START or GAME_STOP)
+	end
+end
+
+local function reset_round(self)
+	for id in pairs(self.balls) do go.delete(id) end
+	self.balls       = {}
+	self.ball_count  = 0
+	self.score       = 0
+	self.lives       = 3
+	self.spawn_timer = SPAWN_INTERVAL
+	for _ = 1, START_BALLS do spawn_ball(self) end
+
+	go.set_position(self.initial_player_spawn, "/player")
+
+	msg.post("/screens#hud", "score", {score = 0})
+	msg.post("/screens#hud", "lives", {lives = 3})
+end
+
+function init(self)
+	math.randomseed(os.time())
+	self.balls       = {}
+	self.ball_count  = 0
+	self.score       = 0
+	self.lives       = 3
+	self.spawn_timer = SPAWN_INTERVAL
+	self.running     = false
+	
+	self.initial_player_spawn = go.get_position("/player")
+
+	msg.post("/screens#hud", "score", {score = 0})
+	msg.post("/screens#hud", "lives", {lives = 3})
+end
+
+function update(self, dt)
+	if not self.running then return end
+	
+	self.spawn_timer = self.spawn_timer - dt
+	if self.spawn_timer <= 0 and self.ball_count < MAX_BALLS then
+		self.spawn_timer = SPAWN_INTERVAL
+		spawn_ball(self)
+	end
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == BALL_COLLECTED then
+		self.balls[message.id] = nil
+		self.ball_count = self.ball_count - 1
+		if message.success then
+			self.score = self.score + 1
+			msg.post("/screens#hud", "score", {score = self.score})
+			sound.play("/sounds#correct")
+		else
+			self.lives = self.lives - 1
+			msg.post("/screens#hud", "lives", {lives = self.lives})
+			sound.play("/sounds#wrong")
+
+			if self.lives <= 0 then
+				msg.post("/screens#screens", "goto", { state = hash("wipe"), score = self.score })
+				set_running(self, false)
+				sound.stop("/sounds#music")
+			end
+		end
+
+	elseif message_id == START_GAME then
+		reset_round(self)
+		set_running(self, true)
+		sound.play("/sounds#music")
+
+	elseif message_id == STOP_GAME then
+		set_running(self, false)
+		sound.stop("/sounds#music")
+	end
+end

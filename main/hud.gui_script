@@ -1,0 +1,41 @@
+local SCORE = hash("score")
+local LIVES = hash("lives")
+
+local function fraction(active, remaining, max)
+	if active then return 1 end
+	if remaining and max and remaining > 0 then return remaining / max end
+	return 0
+end
+
+local function set_overlay(node, frac)
+	gui.set_fill_angle(node, 360 * frac)
+	gui.set_enabled(node, frac > 0)
+end
+
+function init(self)
+	self.score_node = gui.get_node("score")
+	self.lives_node = gui.get_node("lives")
+
+	self.boost_icon     = gui.get_node("boost_icon")
+	self.boost_overlay  = gui.get_node("boost_overlay")
+	self.invuln_icon    = gui.get_node("invuln_icon")
+	self.invuln_overlay = gui.get_node("invuln_overlay")
+
+	gui.set_enabled(self.boost_overlay, false)
+	gui.set_enabled(self.invuln_overlay, false)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == SCORE then
+		gui.set_text(self.score_node, "Score: " .. message.score)
+		
+	elseif message_id == LIVES then
+		gui.set_text(self.lives_node, "Lives: " .. message.lives)
+
+	elseif message_id == hash("ability_state") then
+		set_overlay(self.boost_overlay,
+		fraction(message.boost_active,  message.boost_remaining,  message.boost_max))
+		set_overlay(self.invuln_overlay,
+		fraction(message.invuln_active, message.invuln_remaining, message.invuln_max))
+	end
+end
