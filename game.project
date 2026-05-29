@@ -21,6 +21,7 @@ scale_mode = no_scale
 show_made_with_defold = 0
 show_console_banner = 0
 show_fullscreen_button = 0
+cssfile = /builtins/manifests/web/dark_theme.css
 
 [project]
 title = Beloren Balls
